@@ -107,10 +107,10 @@ class Main(object):
         @see: L{master_discovery_fkie.interface_finder.get_listmaster_service()}
         '''
         if not rospy.is_shutdown():
-            rospy.loginfo("Update ROS master list...")
+            rospy.logdebug("Update ROS master list...")
             service_names = interface_finder.get_listmaster_service(masteruri_from_master(), False)
             for service_name in service_names:
-                rospy.loginfo("service 'list_masters' found on %s", service_name)
+                rospy.logdebug("service 'list_masters' found on %s", service_name)
                 try:
                     with self.__lock:
                         try:
@@ -118,9 +118,15 @@ class Main(object):
                             discoverMasters = rospy.ServiceProxy(service_name, DiscoverMasters)
                             resp = discoverMasters()
                             masters = []
+                            master_names = [m.name for m in resp.masters]
+                            rospy.loginfo("ROS masters obtained from '%s': %s", service_name, master_names)
                             for m in resp.masters:
                                 if not self._re_ignore_hosts.match(m.name) or self._re_sync_hosts.match(m.name):  # do not sync to the master, if it is in ignore list
                                     masters.append(m.name)
+                                elif self._re_ignore_hosts.match(m.name):
+                                    rospy.loginfo("ROS master '%s' in ignore list", m.name)
+                                else:
+                                    rospy.loginfo("ROS master '%s' not specified in sync list", m.name)
                                 self.update_master(m.name, m.uri, m.timestamp, m.timestamp_local, m.discoverer_name, m.monitoruri, m.online)
                             for key in set(self.masters.keys()) - set(masters):
                                 self.remove_master(self.masters[key].name)
@@ -183,6 +189,7 @@ class Main(object):
         # This function is running in a thread!!!
         try:
             socket.setdefaulttimeout(3)
+            rospy.loginfo("Retrieve local state from '%s'", monitoruri)
             own_monitor = xmlrpclib.ServerProxy(monitoruri)
             self.__own_state = own_monitor.masterInfo()
             own_state = MasterInfo.from_list(self.__own_state)
@@ -194,7 +201,7 @@ class Main(object):
                 self.__timestamp_local = own_state.timestamp_local
         except:
             import traceback
-            print traceback.print_exc()
+            rospy.logwarn("ERROR while getting own state from '%s': %s", monitoruri, traceback.format_exc())
             socket.setdefaulttimeout(None)
             time.sleep(3)
             if self.own_state_getter is not None and not rospy.is_shutdown():
@@ -210,6 +217,7 @@ class Main(object):
         try:
             with self.__lock:
                 if ros_master_name in self.masters:
+                    rospy.logwarn("Removing ROS master '%s'", ros_master_name)
                     m = self.masters.pop(ros_master_name)
                     ident = uuid.uuid4()
                     thread = threading.Thread(target=self._threading_stop_sync, args=(m, ident))
