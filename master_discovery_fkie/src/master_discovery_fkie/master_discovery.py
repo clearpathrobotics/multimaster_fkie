@@ -1162,7 +1162,7 @@ class Discoverer(object):
         with self.__lock:
             try:
                 self._msg_counter.log()
-            except Error as e:
+            except Exception as e:
                 rospy.logerror("ERROR logging message counters: %s", str(e))
             self._timer_log_message_counters = threading.Timer(60.0, self._log_message_counters)
             self._timer_log_message_counters.start()
@@ -1174,7 +1174,7 @@ class Discoverer(object):
                 output = subprocess.check_output(['ping', '-c', '1', str(address)])
             except subprocess.CalledProcessError as e:
                 output = e.output
-            except Error as e:
+            except Exception as e:
                 rospy.logerror("ERROR logging connectivity to '%s': %s", str(address), str(e))
             if output is not None:
                 for line in output.split('\n'):
